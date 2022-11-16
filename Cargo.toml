@@ -1,0 +1,20 @@
+[package]
+name = "siop"
+version = "0.1.0"
+edition = "2021"
+authors = ["Spruce Systems, Inc."]
+license = "MIT OR Apache-2.0"
+description = "Self-Issued OpenID Provider v2"
+repository = "https://github.com/spruceid/siop-rs/"
+documentation = "https://docs.rs/siop/"
+
+[dependencies]
+openidconnect = { version = "2.4.0", default-features = false }
+serde = { version = "1.0.147", features = ["derive"] }
+ssi = { git = "https://github.com/spruceid/ssi", branch = "feat/enum-everything", default-features = false }
+oidc4vp = { git = "https://github.com/spruceid/oidc4vp-rs" }
+# ssi = { path = "../ssi", default-features = false }
+# oidc4vp = { path = "../oidc4vp-rs" }
+
+[dev-dependencies]
+serde_json = "1.0.87"
