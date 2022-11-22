@@ -10,9 +10,9 @@ use openidconnect::{
     },
     url::Url,
     AdditionalClaims, AuthUrl, ClaimsVerificationError, ClientId, CsrfToken, EmptyExtraTokenFields,
-    ErrorResponseType, IssuerUrl, JsonWebKey, JsonWebKeyId, JsonWebKeySet, JwsSigningAlgorithm,
-    Nonce, RedirectUrl, RequestUrl, Scope, SignatureVerificationError, StandardErrorResponse,
-    StandardTokenResponse,
+    ErrorResponseType, IssuerUrl, JsonWebKey, JsonWebKeyId, JsonWebKeySet, JsonWebTokenError,
+    JwsSigningAlgorithm, Nonce, PrivateSigningKey, RedirectUrl, RequestUrl, Scope,
+    SignatureVerificationError, SigningError, StandardErrorResponse, StandardTokenResponse,
 };
 use provider::ProviderDiscoveryMetadata;
 use serde::{Deserialize, Serialize};
@@ -128,7 +128,7 @@ pub struct IdTokenAdditionalClaims {
 
 #[derive(Debug, Serialize, Deserialize, Clone, Copy, PartialEq, Hash, Eq)]
 #[serde(transparent)]
-pub struct SigningAlgorithm(jwk::Algorithm);
+pub struct SigningAlgorithm(pub jwk::Algorithm);
 
 impl JwsSigningAlgorithm<CoreJsonWebKeyType> for SigningAlgorithm {
     fn key_type(&self) -> Option<CoreJsonWebKeyType> {
@@ -228,6 +228,34 @@ impl JsonWebKey<SigningAlgorithm, CoreJsonWebKeyType, CoreJsonWebKeyUse> for Web
     }
 }
 
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+pub struct PrivateWebKey {
+    jwk: ssi::jwk::JWK,
+    // key_id: Option<JsonWebKeyId>,
+}
+
+impl PrivateWebKey {
+    pub fn new(jwk: &JWK) -> Self {
+        Self { jwk: jwk.clone() }
+    }
+}
+
+impl PrivateSigningKey<SigningAlgorithm, CoreJsonWebKeyType, CoreJsonWebKeyUse, WebKey>
+    for PrivateWebKey
+{
+    fn sign(
+        &self,
+        signature_alg: &SigningAlgorithm,
+        message: &[u8],
+    ) -> Result<Vec<u8>, SigningError> {
+        jws::sign_bytes(signature_alg.0, message, &self.jwk).map_err(|_| SigningError::CryptoError)
+    }
+
+    fn as_verification_key(&self) -> WebKey {
+        WebKey::new(self.jwk.to_public())
+    }
+}
+
 impl AdditionalClaims for IdTokenAdditionalClaims {}
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
@@ -242,7 +270,7 @@ pub struct IdToken(
     >,
 );
 
-type IdTokenClaims = openidconnect::IdTokenClaims<IdTokenAdditionalClaims, CoreGenderClaim>;
+pub type IdTokenClaims = openidconnect::IdTokenClaims<IdTokenAdditionalClaims, CoreGenderClaim>;
 
 impl IdToken {
     pub async fn claims<'a>(
@@ -303,6 +331,16 @@ impl IdToken {
         };
         self.0
             .claims(&verifier.inner_verifier(&jwk), nonce_verifier)
+    }
+
+    pub fn new(
+        claims: IdTokenClaims,
+        key: PrivateWebKey,
+        alg: SigningAlgorithm,
+    ) -> Result<Self, JsonWebTokenError> {
+        Ok(Self(openidconnect::IdToken::new(
+            claims, &key, alg, None, None,
+        )?))
     }
 }
 
