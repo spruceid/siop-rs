@@ -312,15 +312,12 @@ impl IdToken {
                 let mut jwk = vm.public_key_jwk.as_ref().unwrap().clone();
                 jwk.key_id = jwk.key_id.map(|kid| {
                     // TODO would be better with a DID type
-                    // TODO double check if kid should be equal to sub
-                    let full_kid = format!("{}#{}", claims.subject().as_str(), kid);
-                    // println!("full_kid: {:?}", full_kid);
-                    // println!("sub: {:?}", claims.subject().as_str());
-                    // if claims.subject().as_str() == full_kid {
-                    full_kid
-                    // } else {
-                    //     kid
-                    // }
+                    let sub = claims.subject().as_str();
+                    if !kid.starts_with(sub) {
+                        format!("{}#{}", sub, kid)
+                    } else {
+                        kid
+                    }
                 });
                 jwk
             } else {
