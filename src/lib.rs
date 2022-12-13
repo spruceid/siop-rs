@@ -272,6 +272,18 @@ pub struct IdToken(
 
 pub type IdTokenClaims = openidconnect::IdTokenClaims<IdTokenAdditionalClaims, CoreGenderClaim>;
 
+fn populate_kid(jwk: &mut JWK, sub: &str, vm_id: &str) {
+    jwk.key_id = Some(if let Some(kid) = &jwk.key_id {
+        if !kid.starts_with(sub) {
+            format!("{}#{}", sub, kid)
+        } else {
+            kid.to_string()
+        }
+    } else {
+        format!("{}{}", sub, vm_id)
+    });
+}
+
 impl IdToken {
     pub async fn claims<'a>(
         &'a self,
@@ -310,15 +322,9 @@ impl IdToken {
             })?;
             if let Some((_, vm)) = vms.iter().find(|(_, vm)| vm.public_key_jwk.is_some()) {
                 let mut jwk = vm.public_key_jwk.as_ref().unwrap().clone();
-                jwk.key_id = jwk.key_id.map(|kid| {
-                    // TODO would be better with a DID type
-                    let sub = claims.subject().as_str();
-                    if !kid.starts_with(sub) {
-                        format!("{}#{}", sub, kid)
-                    } else {
-                        kid
-                    }
-                });
+                // TODO would be better with a DID type
+                let sub = claims.subject().as_str();
+                populate_kid(&mut jwk, sub, &vm.id);
                 jwk
             } else {
                 return Err(ClaimsVerificationError::InvalidSubject(
@@ -485,5 +491,32 @@ pub(crate) mod tests {
             }
             _ => panic!(),
         }
+    }
+
+    #[test]
+    fn populate_kid_() {
+        let mut jwk: JWK = serde_json::from_value(json!({
+          "kty": "EC",
+          "crv": "secp256k1",
+          "x": "0DByK_buTNM5ljoJeFDMIoqEaCv92e25H6qj_36zYbs",
+          "y": "dY6MXrr70VZ_1VfHuBELDGzPk8Nxbpv1B76f6NnpVF8"
+        }))
+        .unwrap();
+        populate_kid(&mut jwk, "sub", "#vm_id");
+        assert_eq!(jwk.key_id, Some("sub#vm_id".to_string()));
+    }
+
+    #[test]
+    fn populate_kid_vm() {
+        let mut jwk: JWK = serde_json::from_value(json!({
+          "kid": "sign_G8Bzln9MJP",
+          "kty": "EC",
+          "crv": "secp256k1",
+          "x": "0DByK_buTNM5ljoJeFDMIoqEaCv92e25H6qj_36zYbs",
+          "y": "dY6MXrr70VZ_1VfHuBELDGzPk8Nxbpv1B76f6NnpVF8"
+        }))
+        .unwrap();
+        populate_kid(&mut jwk, "sub", "#vm_id");
+        assert_eq!(jwk.key_id, Some("sub#sign_G8Bzln9MJP".to_string()));
     }
 }
