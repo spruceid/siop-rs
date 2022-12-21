@@ -280,7 +280,12 @@ fn populate_kid(jwk: &mut JWK, sub: &str, vm_id: &str) {
             kid.to_string()
         }
     } else {
-        format!("{}{}", sub, vm_id)
+        // TODO would be nicer with VM type to detect refs
+        if !vm_id.starts_with(sub) {
+            format!("{}{}", sub, vm_id)
+        } else {
+            vm_id.to_string()
+        }
     });
 }
 
@@ -518,5 +523,18 @@ pub(crate) mod tests {
         .unwrap();
         populate_kid(&mut jwk, "sub", "#vm_id");
         assert_eq!(jwk.key_id, Some("sub#sign_G8Bzln9MJP".to_string()));
+    }
+
+    #[test]
+    fn populate_kid_vm_didjwk() {
+        let mut jwk: JWK = serde_json::from_value(json!({
+          "kty": "EC",
+          "crv": "secp256k1",
+          "x": "AqKssnfW7LN7Ubr_q8JeQUEAOQCRiK4NplCeLOLR0Uc",
+          "y": "LHP7WvAdMoyAtyofzKAtChKJuq5_0l2NmRYCDH_BK_8"
+        }))
+        .unwrap();
+        populate_kid(&mut jwk, "did:jwk:eyJjcnYiOiJzZWNwMjU2azEiLCJrdHkiOiJFQyIsIngiOiJBcUtzc25mVzdMTjdVYnJfcThKZVFVRUFPUUNSaUs0TnBsQ2VMT0xSMFVjIiwieSI6IkxIUDdXdkFkTW95QXR5b2Z6S0F0Q2hLSnVxNV8wbDJObVJZQ0RIX0JLXzgifQ", "did:jwk:eyJjcnYiOiJzZWNwMjU2azEiLCJrdHkiOiJFQyIsIngiOiJBcUtzc25mVzdMTjdVYnJfcThKZVFVRUFPUUNSaUs0TnBsQ2VMT0xSMFVjIiwieSI6IkxIUDdXdkFkTW95QXR5b2Z6S0F0Q2hLSnVxNV8wbDJObVJZQ0RIX0JLXzgifQ#0");
+        assert_eq!(jwk.key_id, Some("did:jwk:eyJjcnYiOiJzZWNwMjU2azEiLCJrdHkiOiJFQyIsIngiOiJBcUtzc25mVzdMTjdVYnJfcThKZVFVRUFPUUNSaUs0TnBsQ2VMT0xSMFVjIiwieSI6IkxIUDdXdkFkTW95QXR5b2Z6S0F0Q2hLSnVxNV8wbDJObVJZQ0RIX0JLXzgifQ#0".to_string()));
     }
 }
